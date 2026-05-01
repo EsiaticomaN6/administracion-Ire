@@ -74,11 +74,12 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            position: relative;
         }
 
         .logo-container {
-            width: 45px;
-            height: 45px;
+            width: 50px;
+            height: 50px;
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
             display: flex;
@@ -86,12 +87,31 @@
             justify-content: center;
             font-size: 24px;
             flex-shrink: 0;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .logo-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .logo-container:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .logo-input {
+            display: none;
         }
 
         .header-text h1 {
             font-size: 1.3rem;
             margin: 0;
             font-weight: 700;
+            flex: 1;
         }
 
         .header-text p {
@@ -409,15 +429,28 @@
             color: #c0392b;
             border: 1px solid rgba(231,76,60,0.3);
         }
+
+        .logo-hint {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.7);
+            margin-top: 4px;
+            text-align: center;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <div class="app-container">
         <header>
-            <div class="logo-container">💊</div>
+            <div class="logo-container" id="logoContainer" title="Haz clic para cambiar el logo">
+                <img id="logoImage" src="" alt="Logo" style="display: none;">
+                <span id="logoFallback">💊</span>
+            </div>
+            <input type="file" id="logoInput" class="logo-input" accept="image/*">
             <div class="header-text">
                 <h1>Farmacia IRE</h1>
                 <p>Administración Financiera</p>
+                <div class="logo-hint">Toca el icono para cambiar el logo</div>
             </div>
         </header>
 
@@ -644,7 +677,8 @@
             transactions: [],
             incomeCategories: ['Ahorro', 'Negocio', 'Otros'],
             expenseCategories: ['Servicios', 'Renta', 'Sueldo', 'Gastos'],
-            months: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+            months: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+            logo: null
         };
 
         function init() {
@@ -654,6 +688,7 @@
             updateDashboard();
             renderHistoryTable();
             renderCategories();
+            loadLogo();
         }
 
         function saveToStorage() {
@@ -667,7 +702,42 @@
                 DB.transactions = data.transactions || [];
                 DB.incomeCategories = data.incomeCategories || DB.incomeCategories;
                 DB.expenseCategories = data.expenseCategories || DB.expenseCategories;
+                DB.logo = data.logo || null;
             }
+        }
+
+        function loadLogo() {
+            if (DB.logo) {
+                const logoImage = document.getElementById('logoImage');
+                const logoFallback = document.getElementById('logoFallback');
+                logoImage.src = DB.logo;
+                logoImage.style.display = 'block';
+                logoFallback.style.display = 'none';
+            }
+        }
+
+        function setupLogoUpload() {
+            const logoContainer = document.getElementById('logoContainer');
+            const logoInput = document.getElementById('logoInput');
+
+            logoContainer.addEventListener('click', () => {
+                logoInput.click();
+            });
+
+            logoInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const base64 = event.target.result;
+                        DB.logo = base64;
+                        saveToStorage();
+                        loadLogo();
+                        showAlert('✓ Logo actualizado', 'success');
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
         }
 
         function setTodayDate() {
@@ -677,6 +747,8 @@
         }
 
         function setupEventListeners() {
+            setupLogoUpload();
+
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
