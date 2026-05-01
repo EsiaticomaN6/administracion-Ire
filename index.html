@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, minimum-scale=1, maximum-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Farmacia IRE">
+    <meta name="theme-color" content="#0078a6">
+    <meta name="description" content="Sistema de administración de ingresos y egresos para farmacias">
+    
+    <title>Farmacia IRE</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        :root {
+            --primary: #0078a6;
+            --primary-light: #1a95c4;
+            --primary-dark: #005a80;
+            --accent: #faa61a;
+            --success: #4caf50;
+            --danger: #e74c3c;
+            --bg: #f0f4f7;
+            --surface: #ffffff;
+            --text-dark: #1a1a1a;
+            --text-light: #666666;
+            --border: #d0dce3;
+        }
+
+        body {
+            font-family: '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', sans-serif;
+            background: var(--bg);
+            color: var(--text-dark);
+            position: fixed;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: max(12px, env(safe-area-inset-top)) 16px 12px 16px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-container {
+            width: 45px;
+            height: 45px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .header-text h1 {
+            font-size: 1.3rem;
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .header-text p {
+            opacity: 0.9;
+            font-size: 0.75rem;
+            margin: 2px 0 0 0;
+        }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 12px;
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
+        }
+
+        .tabs {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+            margin-bottom: 15px;
+        }
+
+        .tab-btn {
+            padding: 8px 4px;
+            border: 2px solid var(--border);
+            background: white;
+            color: var(--text-dark);
+            cursor: pointer;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.2s;
+            font-size: 0.7rem;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .filters {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            align-items: end;
+        }
+
+        .form-group {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 600;
+            color: var(--text-dark);
+            font-size: 0.8rem;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            font-size: 1rem;
+            font-family: inherit;
+            background: white;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+            touch-action: manipulation;
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn-secondary {
+            background: var(--accent);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+        }
+
+        .btn-small {
+            padding: 6px 8px;
+            font-size: 0.7rem;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .metric-card {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid var(--primary);
+        }
+
+        .metric-card.income {
+            border-left-color: var(--success);
+        }
+
+        .metric-card.expense {
+            border-left-color: var(--danger);
+        }
+
+        .metric-label {
+            font-size: 0.7rem;
+            color: var(--text-light);
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            word-break: break-word;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            min-height: 280px;
+        }
+
+        .chart-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--text-dark);
+        }
+
+        .chart-container canvas {
+            max-height: 250px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        thead {
+            background: var(--primary);
+            color: white;
+        }
+
+        th {
+            padding: 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        td {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
+
+        .badge-ingreso {
+            background: rgba(76,175,80,0.2);
+            color: #2e7d32;
+        }
+
+        .badge-egreso {
+            background: rgba(231,76,60,0.2);
+            color: #c0392b;
+        }
+
+        .amount {
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        .amount.income {
+            color: var(--success);
+        }
+
+        .amount.expense {
+            color: var(--danger);
+        }
+
+        .table-wrapper {
+            background: white;
+            border-radius: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .alert {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+        }
+
+        .alert-success {
+            background: rgba(76,175,80,0.1);
+            color: #2e7d32;
+            border: 1px solid rgba(76,175,80,0.3);
+        }
+
+        .alert-error {
+            background: rgba(231,76,60,0.1);
+            color: #c0392b;
+            border: 1px solid rgba(231,76,60,0.3);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .form-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        @media (min-width: 768px) {
+            .metrics {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .charts {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .form-row {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+            .filter-row {
+                grid-template-columns: auto auto auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo-container">💊</div>
+            <div class="header-text">
+                <h1>Farmacia IRE</h1>
+                <p>Administración Financiera</p>
+            </div>
+        </header>
+
+        <div class="content">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+                <button class="tab-btn" data-tab="register">📝 Registrar</button>
+                <button class="tab-btn" data-tab="history">📋 Historial</button>
+                <button class="tab-btn" data-tab="reports">📈 Reportes</button>
+                <button class="tab-btn" data-tab="settings">⚙️ Config</button>
+            </div>
+
+            <!-- DASHBOARD -->
+            <div id="dashboard" class="tab-content active">
+                <div class="filters">
+                    <div class="filter-row">
+                        <div class="form-group">
+                            <label>Ver por</label>
+                            <select id="viewType">
+                                <option value="month">Mes</option>
+                                <option value="week">Semana</option>
+                                <option value="all">Todos</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Mes</label>
+                            <select id="monthFilter">
+                                <option value="">Todos</option>
+                                <option value="Enero">Enero</option>
+                                <option value="Febrero">Febrero</option>
+                                <option value="Marzo">Marzo</option>
+                                <option value="Abril">Abril</option>
+                                <option value="Mayo">Mayo</option>
+                                <option value="Junio">Junio</option>
+                                <option value="Julio">Julio</option>
+                                <option value="Agosto">Agosto</option>
+                                <option value="Septiembre">Septiembre</option>
+                                <option value="Octubre">Octubre</option>
+                                <option value="Noviembre">Noviembre</option>
+                                <option value="Diciembre">Diciembre</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-small" id="applyFilter">Aplicar</button>
+                    </div>
+                </div>
+
+                <div class="metrics">
+                    <div class="metric-card income">
+                        <div class="metric-label">Ingresos</div>
+                        <div class="metric-value" id="totalIncome">$0.00</div>
+                    </div>
+                    <div class="metric-card expense">
+                        <div class="metric-label">Egresos</div>
+                        <div class="metric-value" id="totalExpense">$0.00</div>
+                    </div>
+                    <div class="metric-card" style="border-left-color: var(--accent);">
+                        <div class="metric-label">Saldo</div>
+                        <div class="metric-value" id="totalBalance">$0.00</div>
+                    </div>
+                </div>
+
+                <div class="charts">
+                    <div class="chart-container">
+                        <div class="chart-title">Ingresos vs Egresos</div>
+                        <canvas id="balanceChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">Distribución de Ingresos</div>
+                        <canvas id="incomeChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">Distribución de Egresos</div>
+                        <canvas id="expenseChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REGISTRAR -->
+            <div id="register" class="tab-content">
+                <div id="registerAlert"></div>
+                <div class="filters">
+                    <h3 style="margin-bottom: 10px; font-size: 1rem;">Nuevo Movimiento</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Fecha</label>
+                            <input type="date" id="registerDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Tipo</label>
+                            <select id="registerType" required>
+                                <option value="">Seleccionar</option>
+                                <option value="Ingreso">Ingreso</option>
+                                <option value="Egreso">Egreso</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Categoría</label>
+                            <select id="registerCategory" required>
+                                <option value="">Seleccionar</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Concepto</label>
+                            <input type="text" id="registerConcept" placeholder="Ej: Venta" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Monto ($)</label>
+                            <input type="number" id="registerAmount" placeholder="0.00" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Presupuesto ($)</label>
+                            <input type="number" id="registerBudget" placeholder="0.00" step="0.01" min="0">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notas</label>
+                        <textarea id="registerNotes" placeholder="Agregar notas..." rows="2"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="btn" id="saveRegister">💾 Guardar</button>
+                        <button class="btn btn-secondary" id="clearForm">Limpiar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HISTORIAL -->
+            <div id="history" class="tab-content">
+                <div class="filters">
+                    <div class="filter-row">
+                        <div class="form-group">
+                            <label>Tipo</label>
+                            <select id="historyTypeFilter">
+                                <option value="">Todos</option>
+                                <option value="Ingreso">Ingresos</option>
+                                <option value="Egreso">Egresos</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Mes</label>
+                            <select id="historyMonthFilter">
+                                <option value="">Todos</option>
+                                <option value="Enero">Enero</option>
+                                <option value="Febrero">Febrero</option>
+                                <option value="Marzo">Marzo</option>
+                                <option value="Abril">Abril</option>
+                                <option value="Mayo">Mayo</option>
+                                <option value="Junio">Junio</option>
+                                <option value="Julio">Julio</option>
+                                <option value="Agosto">Agosto</option>
+                                <option value="Septiembre">Septiembre</option>
+                                <option value="Octubre">Octubre</option>
+                                <option value="Noviembre">Noviembre</option>
+                                <option value="Diciembre">Diciembre</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-small" id="applyHistoryFilter">Aplicar</button>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+                    <button class="btn btn-secondary btn-small" id="exportExcel">📥 Excel</button>
+                    <button class="btn btn-secondary btn-small" id="printHistory">🖨️ Imprimir</button>
+                </div>
+
+                <div class="table-wrapper">
+                    <table id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Categoría</th>
+                                <th>Concepto</th>
+                                <th>Monto</th>
+                                <th>⋮</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- REPORTES -->
+            <div id="reports" class="tab-content">
+                <div class="filters">
+                    <button class="btn" id="generateReport">📊 Generar Reporte</button>
+                </div>
+                <div id="reportContent"></div>
+            </div>
+
+            <!-- CONFIGURACIÓN -->
+            <div id="settings" class="tab-content">
+                <div class="filters">
+                    <h3 style="margin-bottom: 10px;">Categorías de Ingresos</h3>
+                    <div id="incomeCategories" style="display: grid; gap: 6px; margin-bottom: 10px;"></div>
+                    <div class="form-row">
+                        <input type="text" id="newIncomeCategory" placeholder="Nueva categoría">
+                        <button class="btn btn-small" id="addIncomeCategory">Agregar</button>
+                    </div>
+
+                    <h3 style="margin-bottom: 10px; margin-top: 15px;">Categorías de Egresos</h3>
+                    <div id="expenseCategories" style="display: grid; gap: 6px; margin-bottom: 10px;"></div>
+                    <div class="form-row">
+                        <input type="text" id="newExpenseCategory" placeholder="Nueva categoría">
+                        <button class="btn btn-small" id="addExpenseCategory">Agregar</button>
+                    </div>
+
+                    <button class="btn btn-danger" id="clearAllData" style="margin-top: 15px; width: 100%;">🗑️ Limpiar Datos</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DB = {
+            transactions: [],
+            incomeCategories: ['Ahorro', 'Negocio', 'Otros'],
+            expenseCategories: ['Servicios', 'Renta', 'Sueldo', 'Gastos'],
+            months: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        };
+
+        function init() {
+            loadFromStorage();
+            setupEventListeners();
+            setTodayDate();
+            updateDashboard();
+            renderHistoryTable();
+            renderCategories();
+        }
+
+        function saveToStorage() {
+            localStorage.setItem('farmaciadata', JSON.stringify(DB));
+        }
+
+        function loadFromStorage() {
+            const stored = localStorage.getItem('farmaciadata');
+            if (stored) {
+                const data = JSON.parse(stored);
+                DB.transactions = data.transactions || [];
+                DB.incomeCategories = data.incomeCategories || DB.incomeCategories;
+                DB.expenseCategories = data.expenseCategories || DB.expenseCategories;
+            }
+        }
+
+        function setTodayDate() {
+            const today = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('registerDate');
+            if (dateInput) dateInput.value = today;
+        }
+
+        function setupEventListeners() {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    const tabName = e.target.dataset.tab;
+                    document.getElementById(tabName).classList.add('active');
+                    e.target.classList.add('active');
+                });
+            });
+
+            document.getElementById('saveRegister')?.addEventListener('click', saveTransaction);
+            document.getElementById('clearForm')?.addEventListener('click', clearRegisterForm);
+            document.getElementById('registerType')?.addEventListener('change', updateCategories);
+            document.getElementById('viewType')?.addEventListener('change', updateDashboard);
+            document.getElementById('applyFilter')?.addEventListener('click', updateDashboard);
+            document.getElementById('applyHistoryFilter')?.addEventListener('click', () => renderHistoryTable());
+            document.getElementById('exportExcel')?.addEventListener('click', exportToExcel);
+            document.getElementById('printHistory')?.addEventListener('click', printHistory);
+            document.getElementById('generateReport')?.addEventListener('click', generateReport);
+            document.getElementById('addIncomeCategory')?.addEventListener('click', () => addCategory('income'));
+            document.getElementById('addExpenseCategory')?.addEventListener('click', () => addCategory('expense'));
+            document.getElementById('clearAllData')?.addEventListener('click', () => {
+                if (confirm('¿Eliminar todos los datos?')) {
+                    DB.transactions = [];
+                    saveToStorage();
+                    showAlert('Datos eliminados ✓', 'success');
+                    updateDashboard();
+                    renderHistoryTable();
+                }
+            });
+        }
+
+        function updateCategories() {
+            const type = document.getElementById('registerType').value;
+            const categorySelect = document.getElementById('registerCategory');
+            categorySelect.innerHTML = '<option value="">Seleccionar</option>';
+            const categories = type === 'Ingreso' ? DB.incomeCategories : DB.expenseCategories;
+            categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categorySelect.appendChild(option);
+            });
+        }
+
+        function saveTransaction() {
+            const date = document.getElementById('registerDate').value;
+            const type = document.getElementById('registerType').value;
+            const category = document.getElementById('registerCategory').value;
+            const concept = document.getElementById('registerConcept').value;
+            const amount = parseFloat(document.getElementById('registerAmount').value);
+            const budget = parseFloat(document.getElementById('registerBudget').value) || 0;
+            const notes = document.getElementById('registerNotes').value;
+
+            if (!date || !type || !category || !concept || !amount) {
+                showAlert('Completa todos los campos', 'error');
+                return;
+            }
+
+            DB.transactions.push({
+                id: Date.now(),
+                date,
+                type,
+                category,
+                concept,
+                amount,
+                budget,
+                notes,
+                month: DB.months[new Date(date).getMonth()]
+            });
+
+            saveToStorage();
+            showAlert('✓ Guardado', 'success');
+            clearRegisterForm();
+            updateDashboard();
+        }
+
+        function clearRegisterForm() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('registerDate').value = today;
+            document.getElementById('registerType').value = '';
+            document.getElementById('registerCategory').value = '';
+            document.getElementById('registerConcept').value = '';
+            document.getElementById('registerAmount').value = '';
+            document.getElementById('registerBudget').value = '';
+            document.getElementById('registerNotes').value = '';
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+        }
+
+        function updateDashboard() {
+            const viewType = document.getElementById('viewType').value;
+            const monthFilter = document.getElementById('monthFilter').value;
+            let filtered = DB.transactions;
+
+            if (viewType === 'month' && monthFilter) {
+                filtered = filtered.filter(t => t.month === monthFilter);
+            } else if (viewType === 'week') {
+                const today = new Date();
+                const start = new Date(today.setDate(today.getDate() - today.getDay()));
+                const end = new Date(today.setDate(today.getDate() - today.getDay() + 6));
+                filtered = filtered.filter(t => {
+                    const tDate = new Date(t.date);
+                    return tDate >= start && tDate <= end;
+                });
+            }
+
+            const income = filtered.filter(t => t.type === 'Ingreso').reduce((sum, t) => sum + t.amount, 0);
+            const expense = filtered.filter(t => t.type === 'Egreso').reduce((sum, t) => sum + t.amount, 0);
+            const balance = income - expense;
+
+            document.getElementById('totalIncome').textContent = formatCurrency(income);
+            document.getElementById('totalExpense').textContent = formatCurrency(expense);
+            document.getElementById('totalBalance').textContent = formatCurrency(balance);
+
+            updateCharts(filtered, viewType);
+        }
+
+        let chartInstances = {};
+
+        function destroyChart(id) {
+            if (chartInstances[id]) chartInstances[id].destroy();
+        }
+
+        function updateCharts(filtered, viewType) {
+            const balanceLabels = [];
+            const incomeData = [];
+            const expenseData = [];
+
+            if (viewType === 'week') {
+                const dailyMap = {};
+                filtered.forEach(t => {
+                    const date = new Date(t.date);
+                    const dayName = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][date.getDay()];
+                    if (!dailyMap[t.date]) dailyMap[t.date] = { label: dayName, income: 0, expense: 0 };
+                    if (t.type === 'Ingreso') dailyMap[t.date].income += t.amount;
+                    else dailyMap[t.date].expense += t.amount;
+                });
+                Object.values(dailyMap).forEach(d => {
+                    balanceLabels.push(d.label);
+                    incomeData.push(d.income);
+                    expenseData.push(d.expense);
+                });
+            } else {
+                const monthMap = {};
+                filtered.forEach(t => {
+                    if (!monthMap[t.month]) monthMap[t.month] = { income: 0, expense: 0 };
+                    if (t.type === 'Ingreso') monthMap[t.month].income += t.amount;
+                    else monthMap[t.month].expense += t.amount;
+                });
+                DB.months.forEach(m => {
+                    if (monthMap[m]) {
+                        balanceLabels.push(m.substring(0, 3));
+                        incomeData.push(monthMap[m].income);
+                        expenseData.push(monthMap[m].expense);
+                    }
+                });
+            }
+
+            destroyChart('balanceChart');
+            chartInstances['balanceChart'] = new Chart(document.getElementById('balanceChart'), {
+                type: 'bar',
+                data: {
+                    labels: balanceLabels.length ? balanceLabels : ['Sin datos'],
+                    datasets: [
+                        { 
+                            label: 'Ingresos', 
+                            data: incomeData, 
+                            backgroundColor: 'rgba(0, 120, 166, 0.8)',
+                            borderColor: 'rgba(0, 90, 128, 1)',
+                            borderWidth: 1,
+                            borderRadius: 3 
+                        },
+                        { 
+                            label: 'Egresos', 
+                            data: expenseData, 
+                            backgroundColor: 'rgba(250, 166, 26, 0.8)',
+                            borderColor: 'rgba(230, 137, 0, 1)',
+                            borderWidth: 1,
+                            borderRadius: 3 
+                        }
+                    ]
+                },
+                options: { 
+                    indexAxis: 'y', 
+                    responsive: true, 
+                    maintainAspectRatio: true, 
+                    plugins: { 
+                        legend: { 
+                            display: true, 
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 11 },
+                                padding: 10
+                            }
+                        } 
+                    }, 
+                    scales: { 
+                        x: { 
+                            beginAtZero: true,
+                            ticks: {
+                                font: { size: 10 }
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                font: { size: 10 }
+                            }
+                        }
+                    } 
+                }
+            });
+
+            const incomeByCategory = {};
+            filtered.filter(t => t.type === 'Ingreso').forEach(t => {
+                incomeByCategory[t.category] = (incomeByCategory[t.category] || 0) + t.amount;
+            });
+
+            const incomeColors = [
+                'rgba(0, 120, 166, 0.7)',
+                'rgba(26, 149, 196, 0.7)',
+                'rgba(250, 166, 26, 0.7)',
+                'rgba(155, 89, 182, 0.7)',
+                'rgba(243, 156, 18, 0.7)',
+                'rgba(26, 188, 156, 0.7)'
+            ];
+
+            destroyChart('incomeChart');
+            chartInstances['incomeChart'] = new Chart(document.getElementById('incomeChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(incomeByCategory).length ? Object.keys(incomeByCategory) : ['Sin datos'],
+                    datasets: [{ 
+                        label: 'Ingresos', 
+                        data: Object.values(incomeByCategory), 
+                        backgroundColor: incomeColors.slice(0, Object.keys(incomeByCategory).length),
+                        borderColor: incomeColors.map(c => c.replace('0.7', '1')).slice(0, Object.keys(incomeByCategory).length),
+                        borderWidth: 1,
+                        borderRadius: 3 
+                    }]
+                },
+                options: { 
+                    indexAxis: 'y', 
+                    responsive: true, 
+                    maintainAspectRatio: true, 
+                    plugins: { 
+                        legend: { 
+                            display: false 
+                        } 
+                    }, 
+                    scales: { 
+                        x: { 
+                            beginAtZero: true,
+                            ticks: {
+                                font: { size: 10 }
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                font: { size: 10 }
+                            }
+                        }
+                    } 
+                }
+            });
+
+            const expenseByCategory = {};
+            filtered.filter(t => t.type === 'Egreso').forEach(t => {
+                expenseByCategory[t.category] = (expenseByCategory[t.category] || 0) + t.amount;
+            });
+
+            const expenseColors = [
+                'rgba(250, 166, 26, 0.7)',
+                'rgba(230, 137, 0, 0.7)',
+                'rgba(149, 165, 166, 0.7)',
+                'rgba(52, 73, 94, 0.7)',
+                'rgba(22, 160, 133, 0.7)',
+                'rgba(41, 128, 185, 0.7)'
+            ];
+
+            destroyChart('expenseChart');
+            chartInstances['expenseChart'] = new Chart(document.getElementById('expenseChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(expenseByCategory).length ? Object.keys(expenseByCategory) : ['Sin datos'],
+                    datasets: [{ 
+                        label: 'Egresos', 
+                        data: Object.values(expenseByCategory), 
+                        backgroundColor: expenseColors.slice(0, Object.keys(expenseByCategory).length),
+                        borderColor: expenseColors.map(c => c.replace('0.7', '1')).slice(0, Object.keys(expenseByCategory).length),
+                        borderWidth: 1,
+                        borderRadius: 3 
+                    }]
+                },
+                options: { 
+                    indexAxis: 'y', 
+                    responsive: true, 
+                    maintainAspectRatio: true, 
+                    plugins: { 
+                        legend: { 
+                            display: false 
+                        } 
+                    }, 
+                    scales: { 
+                        x: { 
+                            beginAtZero: true,
+                            ticks: {
+                                font: { size: 10 }
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                font: { size: 10 }
+                            }
+                        }
+                    } 
+                }
+            });
+        }
+
+        function renderHistoryTable() {
+            const typeFilter = document.getElementById('historyTypeFilter').value;
+            const monthFilter = document.getElementById('historyMonthFilter').value;
+            let filtered = DB.transactions;
+            if (typeFilter) filtered = filtered.filter(t => t.type === typeFilter);
+            if (monthFilter) filtered = filtered.filter(t => t.month === monthFilter);
+
+            const tbody = document.getElementById('historyBody');
+            tbody.innerHTML = '';
+            if (!filtered.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-light);">Sin registros</td></tr>';
+                return;
+            }
+
+            filtered.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(t => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${new Date(t.date).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' })}</td>
+                    <td><span class="badge badge-${t.type === 'Ingreso' ? 'ingreso' : 'egreso'}">${t.type.substring(0, 3)}</span></td>
+                    <td>${t.category}</td>
+                    <td>${t.concept}</td>
+                    <td class="amount ${t.type === 'Ingreso' ? 'income' : 'expense'}">${t.type === 'Ingreso' ? '+' : '-'}${formatCurrency(t.amount)}</td>
+                    <td><button class="btn btn-danger btn-small" onclick="deleteTransaction(${t.id})">✕</button></td>
+                `;
+            });
+        }
+
+        function deleteTransaction(id) {
+            if (confirm('¿Eliminar?')) {
+                DB.transactions = DB.transactions.filter(t => t.id !== id);
+                saveToStorage();
+                renderHistoryTable();
+                updateDashboard();
+                showAlert('✓ Eliminado', 'success');
+            }
+        }
+
+        function exportToExcel() {
+            const data = DB.transactions.map(t => ({
+                Fecha: t.date,
+                Tipo: t.type,
+                Categoría: t.category,
+                Concepto: t.concept,
+                Monto: t.amount,
+                Presupuesto: t.budget
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
+            XLSX.writeFile(wb, `Farmacia_IRE_${new Date().toISOString().split('T')[0]}.xlsx`);
+        }
+
+        function printHistory() {
+            const w = window.open();
+            w.document.write('<h1>Historial - Farmacia IRE</h1><table border="1"><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Monto</th></tr>');
+            DB.transactions.forEach(t => w.document.write(`<tr><td>${t.date}</td><td>${t.type}</td><td>${t.category}</td><td>${t.concept}</td><td>${t.amount}</td></tr>`));
+            w.document.write('</table>');
+            w.print();
+        }
+
+        function generateReport() {
+            let html = '<div class="table-wrapper"><table border="1"><tr><th>Período</th><th>Ingresos</th><th>Egresos</th><th>Saldo</th></tr>';
+            const grouped = {};
+            DB.transactions.forEach(t => {
+                if (!grouped[t.month]) grouped[t.month] = { income: 0, expense: 0 };
+                if (t.type === 'Ingreso') grouped[t.month].income += t.amount;
+                else grouped[t.month].expense += t.amount;
+            });
+            Object.entries(grouped).forEach(([k, v]) => {
+                html += `<tr><td>${k}</td><td>${formatCurrency(v.income)}</td><td>${formatCurrency(v.expense)}</td><td>${formatCurrency(v.income - v.expense)}</td></tr>`;
+            });
+            html += '</table></div>';
+            document.getElementById('reportContent').innerHTML = html;
+        }
+
+        function renderCategories() {
+            const incomeDiv = document.getElementById('incomeCategories');
+            incomeDiv.innerHTML = '';
+            DB.incomeCategories.forEach(cat => {
+                const div = document.createElement('div');
+                div.style.display = 'flex';
+                div.style.justifyContent = 'space-between';
+                div.style.padding = '6px';
+                div.style.background = '#f0f4f7';
+                div.style.borderRadius = '4px';
+                div.style.fontSize = '0.8rem';
+                div.innerHTML = `<span>${cat}</span><button class="btn btn-danger btn-small" onclick="deleteCategory('income', '${cat}')">✕</button>`;
+                incomeDiv.appendChild(div);
+            });
+
+            const expenseDiv = document.getElementById('expenseCategories');
+            expenseDiv.innerHTML = '';
+            DB.expenseCategories.forEach(cat => {
+                const div = document.createElement('div');
+                div.style.display = 'flex';
+                div.style.justifyContent = 'space-between';
+                div.style.padding = '6px';
+                div.style.background = '#f0f4f7';
+                div.style.borderRadius = '4px';
+                div.style.fontSize = '0.8rem';
+                div.innerHTML = `<span>${cat}</span><button class="btn btn-danger btn-small" onclick="deleteCategory('expense', '${cat}')">✕</button>`;
+                expenseDiv.appendChild(div);
+            });
+        }
+
+        function addCategory(type) {
+            const inputId = type === 'income' ? 'newIncomeCategory' : 'newExpenseCategory';
+            const input = document.getElementById(inputId);
+            const cat = input.value.trim();
+            if (!cat) { showAlert('Escribe una categoría', 'error'); return; }
+            if (type === 'income' && !DB.incomeCategories.includes(cat)) DB.incomeCategories.push(cat);
+            else if (type === 'expense' && !DB.expenseCategories.includes(cat)) DB.expenseCategories.push(cat);
+            input.value = '';
+            saveToStorage();
+            renderCategories();
+            showAlert('✓ Agregada', 'success');
+        }
+
+        function deleteCategory(type, cat) {
+            if (type === 'income') DB.incomeCategories = DB.incomeCategories.filter(c => c !== cat);
+            else DB.expenseCategories = DB.expenseCategories.filter(c => c !== cat);
+            saveToStorage();
+            renderCategories();
+            showAlert('✓ Eliminada', 'success');
+        }
+
+        function showAlert(msg, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = msg;
+            const container = document.getElementById('registerAlert') || document.querySelector('.tab-content.active');
+            container.insertBefore(alert, container.firstChild);
+            setTimeout(() => alert.remove(), 3000);
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
