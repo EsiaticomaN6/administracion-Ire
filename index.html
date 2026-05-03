@@ -689,6 +689,7 @@
             renderHistoryTable();
             renderCategories();
             loadLogo();
+            updateCategories();
         }
 
         function saveToStorage() {
@@ -761,7 +762,15 @@
 
             document.getElementById('saveRegister')?.addEventListener('click', saveTransaction);
             document.getElementById('clearForm')?.addEventListener('click', clearRegisterForm);
-            document.getElementById('registerType')?.addEventListener('change', updateCategories);
+            
+            // Event listener para cambiar categorías cuando cambies el tipo
+            const registerType = document.getElementById('registerType');
+            if (registerType) {
+                registerType.addEventListener('change', () => {
+                    updateCategories();
+                });
+            }
+            
             document.getElementById('viewType')?.addEventListener('change', updateDashboard);
             document.getElementById('applyFilter')?.addEventListener('click', updateDashboard);
             document.getElementById('applyHistoryFilter')?.addEventListener('click', () => renderHistoryTable());
@@ -782,10 +791,26 @@
         }
 
         function updateCategories() {
-            const type = document.getElementById('registerType').value;
+            const typeSelect = document.getElementById('registerType');
             const categorySelect = document.getElementById('registerCategory');
-            categorySelect.innerHTML = '<option value="">Seleccionar</option>';
-            const categories = type === 'Ingreso' ? DB.incomeCategories : DB.expenseCategories;
+            
+            if (!typeSelect || !categorySelect) return;
+            
+            const type = typeSelect.value;
+            categorySelect.innerHTML = '<option value="">Seleccionar categoría</option>';
+            
+            let categories = [];
+            if (type === 'Ingreso') {
+                categories = DB.incomeCategories || [];
+            } else if (type === 'Egreso') {
+                categories = DB.expenseCategories || [];
+            }
+            
+            if (categories.length === 0) {
+                categorySelect.innerHTML += '<option disabled>No hay categorías</option>';
+                return;
+            }
+            
             categories.forEach(cat => {
                 const option = document.createElement('option');
                 option.value = cat;
