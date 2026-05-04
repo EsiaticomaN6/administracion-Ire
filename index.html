@@ -507,8 +507,7 @@
         const balance = income - expense;
 
         const subtitleEl = document.getElementById('waterfallSubtitle');
-        if (subtitleEl) subtitleEl.textContent =
-            `Ingresos ${fmt(income)}  ·  Egresos ${fmt(expense)}  ·  Saldo ${fmt(balance)}`;
+        if (subtitleEl) subtitleEl.textContent = '';
 
         // Categorías ordenadas por monto total descendente
         const catMap = {};
@@ -663,7 +662,7 @@
         filtered.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(t => {
             const row = tbody.insertRow();
             row.innerHTML = `
-                <td>${new Date(t.date).toLocaleDateString('es-MX',{month:'short',day:'numeric'})}</td>
+                <td>${new Date(t.date + 'T12:00:00').toLocaleDateString('es-MX',{month:'short',day:'numeric'})}</td>
                 <td><span class="badge badge-${t.type === 'Ingreso' ? 'ingreso':'egreso'}">${t.type.substring(0,3)}</span></td>
                 <td>${t.category}</td>
                 <td>${t.concept}</td>
