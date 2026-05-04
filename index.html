@@ -460,7 +460,7 @@
         });
     }
 
-    function formatCurrency(v) { return new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(v); }
+    function formatCurrency(v) { return new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN', maximumFractionDigits:0 }).format(v); }
 
     function updateDashboard() {
         const viewType   = document.getElementById('viewType').value;
@@ -500,7 +500,7 @@
 
     function updateCharts(filtered, viewType) {
         const fmt = (v) => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN', maximumFractionDigits:0 }).format(v);
-        const fmtCompact = (v) => new Intl.NumberFormat('es-MX', { notation:'compact', style:'currency', currency:'MXN', maximumFractionDigits:1 }).format(v);
+        const fmtCompact = (v) => new Intl.NumberFormat('es-MX', { notation:'compact', style:'currency', currency:'MXN', maximumFractionDigits:0 }).format(v);
 
         const income  = filtered.filter(t => t.type === 'Ingreso').reduce((s,t) => s+t.amount, 0);
         const expense = filtered.filter(t => t.type === 'Egreso').reduce((s,t) => s+t.amount, 0);
@@ -599,11 +599,11 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: true,
-                layout: { padding: { top: 24 } },
+                layout: { padding: { top: 20, bottom: 0 } },
                 plugins: {
                     legend: {
                         display: true,
-                        position: 'top',
+                        position: 'bottom',
                         labels: { boxWidth: 12, font:{ size:11 }, padding:16 }
                     },
                     tooltip: {
@@ -628,7 +628,7 @@
                         const ctx2  = chart.ctx;
                         ctx2.save();
                         ctx2.textAlign    = 'center';
-                        ctx2.textBaseline = 'top';
+                        ctx2.textBaseline = 'bottom';
                         ctx2.font         = 'bold 11px -apple-system, sans-serif';
 
                         chart.data.datasets.forEach((dataset, dIdx) => {
@@ -638,9 +638,7 @@
                                 const val = dataset.data[bIdx];
                                 if (val === null || val === undefined || val === 0) return;
                                 ctx2.fillStyle = dataset.borderColor;
-                                // Posición: debajo de la base de la barra
-                                const bottom = bar.base !== undefined ? bar.base : bar.y + bar.height;
-                                ctx2.fillText(fmtCompact(val), bar.x, bottom + 4);
+                                ctx2.fillText(fmtCompact(val), bar.x, bar.y - 4);
                             });
                         });
                         ctx2.restore();
