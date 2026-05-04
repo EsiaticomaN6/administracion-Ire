@@ -337,9 +337,14 @@
     }
 
     function setTodayDate() {
-        const today = new Date().toISOString().split('T')[0];
-        const d = document.getElementById('registerDate');
-        if (d) d.value = today;
+        // Usar fecha local, no UTC
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const today = `${y}-${m}-${d}`;
+        const el = document.getElementById('registerDate');
+        if (el) el.value = today;
     }
 
     function setupEventListeners() {
@@ -402,7 +407,7 @@
         const budget = parseFloat(document.getElementById('registerBudget').value) || 0;
         const notes = document.getElementById('registerNotes').value;
         if (!date || !type || !category || !concept || !amount) { showAlert('Completa todos los campos', 'error'); return; }
-        DB.transactions.push({ id: Date.now(), date, type, category, concept, amount, budget, notes, month: DB.months[new Date(date).getMonth()] });
+        DB.transactions.push({ id: Date.now(), date, type, category, concept, amount, budget, notes, month: DB.months[new Date(date + 'T12:00:00').getMonth()] });
         saveToStorage();
         showAlert('✓ Guardado', 'success');
         clearRegisterForm();
@@ -420,17 +425,30 @@
     function formatCurrency(v) { return new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(v); }
 
     function updateDashboard() {
-        const viewType = document.getElementById('viewType').value;
+        const viewType   = document.getElementById('viewType').value;
         const monthFilter = document.getElementById('monthFilter').value;
         let filtered = DB.transactions;
-        if (viewType === 'month' && monthFilter) {
-            filtered = filtered.filter(t => t.month === monthFilter);
+
+        if (viewType === 'month') {
+            // Si eligió un mes específico, filtra por ese mes
+            if (monthFilter) {
+                filtered = filtered.filter(t => t.month === monthFilter);
+            } else {
+                // Si no eligió mes, muestra el mes actual
+                const mesActual = DB.months[new Date().getMonth()];
+                filtered = filtered.filter(t => t.month === mesActual);
+            }
         } else if (viewType === 'week') {
-            const today = new Date();
-            const sun = new Date(today); sun.setDate(today.getDate() - today.getDay());
-            const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
-            filtered = filtered.filter(t => { const d = new Date(t.date); return d >= sun && d <= sat; });
+            const now = new Date();
+            const sun = new Date(now); sun.setDate(now.getDate() - now.getDay()); sun.setHours(0,0,0,0);
+            const sat = new Date(sun); sat.setDate(sun.getDate() + 6); sat.setHours(23,59,59,999);
+            filtered = filtered.filter(t => {
+                const d = new Date(t.date + 'T12:00:00');
+                return d >= sun && d <= sat;
+            });
         }
+        // viewType === 'all' → sin filtro, muestra todo
+
         const income  = filtered.filter(t => t.type === 'Ingreso').reduce((s,t) => s + t.amount, 0);
         const expense = filtered.filter(t => t.type === 'Egreso').reduce((s,t) => s + t.amount, 0);
         document.getElementById('totalIncome').textContent  = formatCurrency(income);
