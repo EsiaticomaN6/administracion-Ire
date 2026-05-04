@@ -99,9 +99,15 @@
         .metric-value { font-size:1.1rem; font-weight:700; color:var(--text-dark); word-break:break-word; }
 
         .charts { display:grid; grid-template-columns:1fr; gap:15px; margin-bottom:15px; }
-        .chart-container { background:white; padding:12px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.08); min-height:280px; }
-        .chart-title { font-size:0.95rem; font-weight:700; margin-bottom:10px; color:var(--text-dark); }
-        .chart-container canvas { max-height:250px; }
+        .chart-container {
+            background:white; padding:16px; border-radius:12px;
+            box-shadow:0 2px 12px rgba(0,0,0,0.08); min-height:260px;
+            border-top: 3px solid var(--primary);
+        }
+        .chart-header { margin-bottom:12px; }
+        .chart-title { font-size:1rem; font-weight:700; color:var(--text-dark); }
+        .chart-subtitle { font-size:0.75rem; color:var(--text-light); margin-top:2px; }
+        .chart-container canvas { max-height:220px; }
 
         table { width:100%; border-collapse:collapse; font-size:0.8rem; }
         thead { background:var(--primary); color:white; }
@@ -176,9 +182,33 @@
                 <div class="metric-card" style="border-left-color:var(--accent);"><div class="metric-label">Saldo</div><div class="metric-value" id="totalBalance">$0.00</div></div>
             </div>
             <div class="charts">
-                <div class="chart-container"><div class="chart-title">Ingresos vs Egresos</div><canvas id="balanceChart"></canvas></div>
-                <div class="chart-container"><div class="chart-title">Distribución de Ingresos</div><canvas id="incomeChart"></canvas></div>
-                <div class="chart-container"><div class="chart-title">Distribución de Egresos</div><canvas id="expenseChart"></canvas></div>
+                <!-- Gráfica 1: Cascada (Waterfall) Ingresos vs Egresos -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">Flujo de Caja</div>
+                        <div class="chart-subtitle" id="waterfallSubtitle">Ingresos · Egresos · Saldo</div>
+                    </div>
+                    <canvas id="balanceChart"></canvas>
+                </div>
+                <!-- Gráfica 2: Donut Ingresos por categoría -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">Ingresos por Categoría</div>
+                        <div class="chart-subtitle" id="incomeSubtitle"></div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:center;">
+                        <canvas id="incomeChart" style="max-height:200px;"></canvas>
+                        <div id="incomeLegend" style="font-size:0.75rem;"></div>
+                    </div>
+                </div>
+                <!-- Gráfica 3: Barras horizontales Egresos -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">Egresos por Categoría</div>
+                        <div class="chart-subtitle" id="expenseSubtitle"></div>
+                    </div>
+                    <canvas id="expenseChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -469,52 +499,202 @@
     function destroyChart(id) { if (chartInstances[id]) chartInstances[id].destroy(); }
 
     function updateCharts(filtered, viewType) {
-        const balanceLabels = [], incomeData = [], expenseData = [];
-        if (viewType === 'week') {
-            const map = {};
-            filtered.forEach(t => {
-                const d = new Date(t.date);
-                const label = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d.getDay()];
-                if (!map[t.date]) map[t.date] = { label, income:0, expense:0 };
-                t.type === 'Ingreso' ? map[t.date].income += t.amount : map[t.date].expense += t.amount;
-            });
-            Object.values(map).forEach(d => { balanceLabels.push(d.label); incomeData.push(d.income); expenseData.push(d.expense); });
-        } else {
-            const map = {};
-            filtered.forEach(t => {
-                if (!map[t.month]) map[t.month] = { income:0, expense:0 };
-                t.type === 'Ingreso' ? map[t.month].income += t.amount : map[t.month].expense += t.amount;
-            });
-            DB.months.forEach(m => { if (map[m]) { balanceLabels.push(m.substring(0,3)); incomeData.push(map[m].income); expenseData.push(map[m].expense); } });
-        }
+        const fmt = (v) => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN', maximumFractionDigits:0 }).format(v);
+
+        // ── GRÁFICA 1: WATERFALL (Cascada) ──
+        const income  = filtered.filter(t => t.type === 'Ingreso').reduce((s,t) => s+t.amount, 0);
+        const expense = filtered.filter(t => t.type === 'Egreso').reduce((s,t) => s+t.amount, 0);
+        const balance = income - expense;
+
+        // Datos tipo waterfall: [Ingresos, barra flotante de Egresos, Saldo]
+        // Para el efecto waterfall usamos dataset transparente (offset) + dataset visible
+        const wLabels   = ['Ingresos', 'Egresos', 'Saldo'];
+        const wOffset   = [0, income - expense > 0 ? income - expense : 0, 0];  // barra invisible
+        const wIncome   = [income, 0, 0];
+        const wExpense  = [0, expense, 0];
+        const wBalance  = [0, 0, balance];
+        const wBalColor = balance >= 0 ? 'rgba(46,125,50,0.9)' : 'rgba(198,40,40,0.9)';
+
+        document.getElementById('waterfallSubtitle').textContent =
+            `Ingresos ${fmt(income)}  ·  Egresos ${fmt(expense)}  ·  Saldo ${fmt(balance)}`;
 
         destroyChart('balanceChart');
         chartInstances['balanceChart'] = new Chart(document.getElementById('balanceChart'), {
-            type:'bar',
-            data:{ labels: balanceLabels.length ? balanceLabels : ['Sin datos'],
-                datasets:[
-                    { label:'Ingresos', data:incomeData, backgroundColor:'rgba(0,120,166,0.8)', borderColor:'rgba(0,90,128,1)', borderWidth:1, borderRadius:3 },
-                    { label:'Egresos',  data:expenseData, backgroundColor:'rgba(250,166,26,0.8)', borderColor:'rgba(230,137,0,1)', borderWidth:1, borderRadius:3 }
-                ]},
-            options:{ indexAxis:'y', responsive:true, maintainAspectRatio:true, plugins:{ legend:{ display:true, position:'top' } }, scales:{ x:{ beginAtZero:true } } }
+            type: 'bar',
+            data: {
+                labels: wLabels,
+                datasets: [
+                    {
+                        label: 'Ingresos',
+                        data: wIncome,
+                        backgroundColor: 'rgba(0,120,166,0.85)',
+                        borderColor: 'rgba(0,90,128,1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    },
+                    {
+                        label: 'Egresos',
+                        data: wExpense,
+                        backgroundColor: 'rgba(211,47,47,0.85)',
+                        borderColor: 'rgba(183,28,28,1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    },
+                    {
+                        label: 'Saldo',
+                        data: wBalance,
+                        backgroundColor: wBalColor,
+                        borderColor: balance >= 0 ? 'rgba(27,94,32,1)' : 'rgba(183,28,28,1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                if (ctx.raw === 0) return null;
+                                return ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 12, weight: '600' } }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.06)' },
+                        ticks: {
+                            font: { size: 10 },
+                            callback: (v) => new Intl.NumberFormat('es-MX', { notation:'compact', currency:'MXN', style:'currency' }).format(v)
+                        }
+                    }
+                }
+            }
         });
 
+        // ── GRÁFICA 2: DONUT — Ingresos por categoría ──
         const incCat = {};
-        filtered.filter(t => t.type === 'Ingreso').forEach(t => { incCat[t.category] = (incCat[t.category]||0) + t.amount; });
+        filtered.filter(t => t.type === 'Ingreso').forEach(t => {
+            incCat[t.category] = (incCat[t.category]||0) + t.amount;
+        });
+        const incLabels = Object.keys(incCat);
+        const incVals   = Object.values(incCat);
+        const incColors = ['#0078a6','#1a95c4','#faa61a','#4caf50','#9c27b0','#ff5722','#607d8b','#e91e63'];
+        const incTotal  = incVals.reduce((s,v) => s+v, 0);
+
+        document.getElementById('incomeSubtitle').textContent = incTotal > 0 ? `Total: ${fmt(incTotal)}` : '';
+
+        // Leyenda personalizada
+        const incLeg = document.getElementById('incomeLegend');
+        incLeg.innerHTML = incLabels.length
+            ? incLabels.map((l,i) => `
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                    <div style="width:10px;height:10px;border-radius:50%;background:${incColors[i%incColors.length]};flex-shrink:0;"></div>
+                    <span style="color:#444;">${l}</span>
+                    <span style="margin-left:auto;font-weight:700;color:${incColors[i%incColors.length]};">${fmt(incVals[i])}</span>
+                </div>`).join('')
+            : '<div style="color:#999;font-size:0.8rem;">Sin datos</div>';
+
         destroyChart('incomeChart');
         chartInstances['incomeChart'] = new Chart(document.getElementById('incomeChart'), {
-            type:'bar',
-            data:{ labels: Object.keys(incCat).length ? Object.keys(incCat) : ['Sin datos'], datasets:[{ label:'Ingresos', data:Object.values(incCat), backgroundColor:['rgba(0,120,166,0.7)','rgba(26,149,196,0.7)','rgba(250,166,26,0.7)','rgba(155,89,182,0.7)'], borderWidth:0, borderRadius:3 }]},
-            options:{ indexAxis:'y', responsive:true, maintainAspectRatio:true, plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true } } }
+            type: 'doughnut',
+            data: {
+                labels: incLabels.length ? incLabels : ['Sin datos'],
+                datasets: [{
+                    data: incVals.length ? incVals : [1],
+                    backgroundColor: incVals.length ? incColors.slice(0, incLabels.length) : ['#eee'],
+                    borderWidth: 2,
+                    borderColor: '#fff',
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                cutout: '65%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` ${ctx.label}: ${fmt(ctx.raw)} (${incTotal > 0 ? ((ctx.raw/incTotal)*100).toFixed(1) : 0}%)`
+                        }
+                    }
+                }
+            }
         });
 
+        // ── GRÁFICA 3: BARRAS HORIZONTALES — Egresos por categoría ──
         const expCat = {};
-        filtered.filter(t => t.type === 'Egreso').forEach(t => { expCat[t.category] = (expCat[t.category]||0) + t.amount; });
+        filtered.filter(t => t.type === 'Egreso').forEach(t => {
+            expCat[t.category] = (expCat[t.category]||0) + t.amount;
+        });
+        // Ordenar de mayor a menor
+        const expSorted = Object.entries(expCat).sort((a,b) => b[1]-a[1]);
+        const expLabels = expSorted.map(e => e[0]);
+        const expVals   = expSorted.map(e => e[1]);
+        const expTotal  = expVals.reduce((s,v) => s+v, 0);
+
+        document.getElementById('expenseSubtitle').textContent = expTotal > 0 ? `Total: ${fmt(expTotal)}` : '';
+
+        const expGradients = expLabels.map((_, i) => {
+            const alpha = 0.9 - (i * 0.08);
+            return `rgba(211,47,47,${Math.max(alpha, 0.35)})`;
+        });
+
         destroyChart('expenseChart');
         chartInstances['expenseChart'] = new Chart(document.getElementById('expenseChart'), {
-            type:'bar',
-            data:{ labels: Object.keys(expCat).length ? Object.keys(expCat) : ['Sin datos'], datasets:[{ label:'Egresos', data:Object.values(expCat), backgroundColor:['rgba(250,166,26,0.7)','rgba(230,137,0,0.7)','rgba(149,165,166,0.7)','rgba(52,73,94,0.7)'], borderWidth:0, borderRadius:3 }]},
-            options:{ indexAxis:'y', responsive:true, maintainAspectRatio:true, plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true } } }
+            type: 'bar',
+            data: {
+                labels: expLabels.length ? expLabels : ['Sin datos'],
+                datasets: [{
+                    label: 'Egresos',
+                    data: expVals.length ? expVals : [0],
+                    backgroundColor: expGradients.length ? expGradients : ['#eee'],
+                    borderColor: 'rgba(183,28,28,0.6)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` ${fmt(ctx.raw)}${expTotal > 0 ? ` (${((ctx.raw/expTotal)*100).toFixed(1)}%)` : ''}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.06)' },
+                        ticks: {
+                            font: { size: 10 },
+                            callback: (v) => new Intl.NumberFormat('es-MX', { notation:'compact', currency:'MXN', style:'currency' }).format(v)
+                        }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { font: { size: 11, weight: '600' } }
+                    }
+                }
+            }
         });
     }
 
