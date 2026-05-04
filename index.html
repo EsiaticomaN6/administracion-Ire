@@ -493,32 +493,37 @@
         // Reunir todas las categorías presentes
         const catMap = {};
         filtered.forEach(t => {
-            if (!catMap[t.category]) catMap[t.category] = { ingreso: 0, egreso: 0 };
+            if (!catMap[t.category]) catMap[t.category] = { ingreso:0, egreso:0 };
             if (t.type === 'Ingreso') catMap[t.category].ingreso += t.amount;
             else catMap[t.category].egreso += t.amount;
         });
 
-        // Ordenar: primero categorías con ingresos, luego con egresos, por monto desc
-        const cats = Object.keys(catMap).sort((a, b) =>
+        const cats = Object.keys(catMap).sort((a,b) =>
             (catMap[b].ingreso + catMap[b].egreso) - (catMap[a].ingreso + catMap[a].egreso)
         );
 
-        const ingresoData = cats.map(c => catMap[c].ingreso);
-        const egresoData  = cats.map(c => catMap[c].egreso);
+        // Agregar columna de Saldo al final
+        const allLabels   = cats.length ? [...cats, 'Saldo'] : ['Sin datos'];
+        const ingresoData = cats.length ? [...cats.map(c => catMap[c].ingreso), 0] : [0];
+        const egresoData  = cats.length ? [...cats.map(c => catMap[c].egreso),  0] : [0];
+        const saldoData   = cats.length ? [...cats.map(() => 0), balance] : [0];
+
+        // Color tenue del saldo: verde si positivo, rojo si negativo
+        const saldoColor  = balance >= 0 ? 'rgba(46,125,50,0.35)'  : 'rgba(211,47,47,0.35)';
+        const saldoBorder = balance >= 0 ? 'rgba(46,125,50,0.7)'   : 'rgba(211,47,47,0.7)';
 
         destroyChart('balanceChart');
-        // Destruir los otros si existían
         destroyChart('incomeChart');
         destroyChart('expenseChart');
 
         chartInstances['balanceChart'] = new Chart(document.getElementById('balanceChart'), {
             type: 'bar',
             data: {
-                labels: cats.length ? cats : ['Sin datos'],
+                labels: allLabels,
                 datasets: [
                     {
                         label: 'Ingresos',
-                        data: cats.length ? ingresoData : [0],
+                        data: ingresoData,
                         backgroundColor: 'rgba(0,120,166,0.35)',
                         borderColor: 'rgba(0,120,166,0.7)',
                         borderWidth: 1,
@@ -527,9 +532,18 @@
                     },
                     {
                         label: 'Egresos',
-                        data: cats.length ? egresoData : [0],
+                        data: egresoData,
                         backgroundColor: 'rgba(211,47,47,0.35)',
                         borderColor: 'rgba(211,47,47,0.7)',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                        borderSkipped: false,
+                    },
+                    {
+                        label: 'Saldo',
+                        data: saldoData,
+                        backgroundColor: saldoColor,
+                        borderColor: saldoBorder,
                         borderWidth: 1,
                         borderRadius: 5,
                         borderSkipped: false,
@@ -543,26 +557,53 @@
                     legend: {
                         display: true,
                         position: 'top',
-                        labels: { boxWidth: 12, font: { size: 11 }, padding: 16 }
+                        labels: { boxWidth: 12, font:{ size:11 }, padding:16 }
                     },
                     tooltip: {
                         callbacks: {
-                            label: (ctx) => ctx.raw > 0 ? ` ${ctx.dataset.label}: ${fmt(ctx.raw)}` : null
+                            label: (ctx) => ctx.raw !== 0 ? ` ${ctx.dataset.label}: ${fmt(ctx.raw)}` : null
                         }
-                    }
+                    },
+                    // Etiquetas sobre cada barra
+                    datalabels: false
                 },
                 scales: {
                     x: {
-                        grid: { display: false },
-                        ticks: { font: { size: 11, weight: '600' } }
+                        grid: { display:false },
+                        ticks: { font:{ size:11, weight:'600' } }
                     },
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(0,0,0,0.06)' },
+                        grid: { color:'rgba(0,0,0,0.06)' },
                         ticks: {
-                            font: { size: 10 },
+                            font: { size:10 },
                             callback: (v) => fmtCompact(v)
                         }
+                    }
+                },
+                // Plugin inline para dibujar etiquetas sobre las barras
+                animation: {
+                    onComplete: function() {
+                        const chart = this;
+                        const ctx2  = chart.ctx;
+                        ctx2.save();
+                        ctx2.font = 'bold 10px -apple-system, sans-serif';
+                        ctx2.textAlign = 'center';
+                        ctx2.textBaseline = 'bottom';
+
+                        chart.data.datasets.forEach((dataset, dIdx) => {
+                            const meta = chart.getDatasetMeta(dIdx);
+                            meta.data.forEach((bar, bIdx) => {
+                                const val = dataset.data[bIdx];
+                                if (!val || val === 0) return;
+                                // Color de la etiqueta igual al borde de la barra
+                                ctx2.fillStyle = dataset.borderColor;
+                                const x = bar.x;
+                                const y = bar.y - 3;
+                                ctx2.fillText(fmtCompact(val), x, y);
+                            });
+                        });
+                        ctx2.restore();
                     }
                 }
             }
