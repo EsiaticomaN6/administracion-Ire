@@ -237,14 +237,13 @@
                     <button class="btn btn-small" id="applyHistoryFilter">Aplicar</button>
                 </div>
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; margin-bottom:10px;">
-                <button class="btn btn-secondary btn-small" id="exportExcel">📥 Excel</button>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:10px;">
+                <button class="btn btn-secondary btn-small" id="exportExcel">📥 Exportar Excel</button>
+                <button class="btn btn-small" id="importExcel" style="background:#2e7d32;">📂 Importar Excel</button>
                 <button class="btn btn-secondary btn-small" id="printHistory">🖨️ Imprimir</button>
-                <button class="btn btn-small" id="exportJSON" style="background:#5b4fcf;">💾 Exportar</button>
-                <button class="btn btn-small" id="importJSON" style="background:#2e7d32;">📂 Importar</button>
             </div>
-            <!-- Input oculto para importar -->
-            <input type="file" id="importFileInput" accept=".json" style="display:none;">
+            <!-- Input oculto para importar Excel -->
+            <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none;">
             <div class="table-wrapper">
                 <table>
                     <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Monto</th><th>⋮</th></tr></thead>
@@ -376,9 +375,8 @@
         document.getElementById('applyHistoryFilter')?.addEventListener('click', renderHistoryTable);
         document.getElementById('exportExcel')?.addEventListener('click', exportToExcel);
         document.getElementById('printHistory')?.addEventListener('click', printHistory);
-        document.getElementById('exportJSON')?.addEventListener('click', exportJSON);
-        document.getElementById('importJSON')?.addEventListener('click', () => document.getElementById('importFileInput').click());
-        document.getElementById('importFileInput')?.addEventListener('change', importJSON);
+        document.getElementById('importExcel')?.addEventListener('click', () => document.getElementById('importFileInput').click());
+        document.getElementById('importFileInput')?.addEventListener('change', importFromExcel);
         document.getElementById('generateReport')?.addEventListener('click', generateReport);
         document.getElementById('addIncomeCategory')?.addEventListener('click', () => addCategory('income'));
         document.getElementById('addExpenseCategory')?.addEventListener('click', () => addCategory('expense'));
@@ -551,79 +549,86 @@
     }
 
     function exportToExcel() {
-        const data = DB.transactions.map(t => ({ Fecha:t.date, Tipo:t.type, Categoría:t.category, Concepto:t.concept, Monto:t.amount, Presupuesto:t.budget }));
+        if (!DB.transactions.length) { showAlert('No hay registros para exportar', 'error'); return; }
+        const data = DB.transactions.map(t => ({
+            Fecha: t.date,
+            Mes: t.month,
+            Tipo: t.type,
+            Categoria: t.category,
+            Concepto: t.concept,
+            Monto: t.amount,
+            Presupuesto: t.budget || 0,
+            Notas: t.notes || ''
+        }));
         const ws = XLSX.utils.json_to_sheet(data);
+        // Ajustar ancho de columnas
+        ws['!cols'] = [
+            {wch:12}, {wch:12}, {wch:10}, {wch:15},
+            {wch:25}, {wch:12}, {wch:12}, {wch:30}
+        ];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
-        XLSX.writeFile(wb, `Farmacia_IRE_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(wb, `FarmaciaIRE_${new Date().toISOString().split('T')[0]}.xlsx`);
+        showAlert(`✅ Exportados ${data.length} registros`, 'success');
     }
 
-    function exportJSON() {
-        const backup = {
-            version: '1.0',
-            fecha: new Date().toISOString(),
-            transactions: DB.transactions,
-            incomeCategories: DB.incomeCategories,
-            expenseCategories: DB.expenseCategories
-        };
-        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `FarmaciaIRE_backup_${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showAlert(`✅ Exportados ${DB.transactions.length} registros`, 'success');
-    }
-
-    function importJSON(e) {
+    function importFromExcel(e) {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = (ev) => {
             try {
-                const data = JSON.parse(ev.target.result);
+                const wb = XLSX.read(ev.target.result, { type: 'binary' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(ws);
 
-                // Validar estructura mínima
-                if (!data.transactions || !Array.isArray(data.transactions)) {
-                    showAlert('❌ Archivo inválido', 'error');
-                    return;
-                }
+                if (!rows.length) { showAlert('El archivo está vacío', 'error'); return; }
 
-                const nuevos = data.transactions.length;
-                const existentes = DB.transactions.map(t => t.id);
+                let importados = 0;
+                let omitidos = 0;
 
-                // Importar sin duplicar (por id)
-                data.transactions.forEach(t => {
-                    if (!existentes.includes(t.id)) {
-                        DB.transactions.push(t);
-                    }
+                rows.forEach(row => {
+                    // Mapear columnas (acepta variantes con/sin tilde)
+                    const fecha    = row['Fecha'] || row['fecha'] || '';
+                    const tipo     = row['Tipo'] || row['tipo'] || '';
+                    const categoria = row['Categoria'] || row['Categoría'] || row['categoria'] || '';
+                    const concepto = row['Concepto'] || row['concepto'] || '';
+                    const monto    = parseFloat(row['Monto'] || row['monto'] || 0);
+
+                    // Validar campos mínimos
+                    if (!fecha || !tipo || !concepto || !monto) { omitidos++; return; }
+
+                    // Evitar duplicados exactos (misma fecha + concepto + monto)
+                    const existe = DB.transactions.some(t =>
+                        t.date === fecha && t.concept === concepto && t.amount === monto
+                    );
+                    if (existe) { omitidos++; return; }
+
+                    const dateObj = new Date(fecha + 'T12:00:00');
+                    DB.transactions.push({
+                        id: Date.now() + Math.random(),
+                        date: fecha,
+                        type: tipo,
+                        category: categoria || 'Otros',
+                        concept: concepto,
+                        amount: monto,
+                        budget: parseFloat(row['Presupuesto'] || 0),
+                        notes: row['Notas'] || '',
+                        month: DB.months[dateObj.getMonth()] || ''
+                    });
+                    importados++;
                 });
-
-                // Importar categorías nuevas si vienen en el archivo
-                if (data.incomeCategories) {
-                    data.incomeCategories.forEach(c => {
-                        if (!DB.incomeCategories.includes(c)) DB.incomeCategories.push(c);
-                    });
-                }
-                if (data.expenseCategories) {
-                    data.expenseCategories.forEach(c => {
-                        if (!DB.expenseCategories.includes(c)) DB.expenseCategories.push(c);
-                    });
-                }
 
                 saveToStorage();
                 updateDashboard();
                 renderHistoryTable();
-                renderCategories();
-                showAlert(`✅ Importados ${nuevos} registros correctamente`, 'success');
+                showAlert(`✅ Importados: ${importados} | Omitidos: ${omitidos}`, 'success');
             } catch (err) {
-                showAlert('❌ Error al leer el archivo', 'error');
+                showAlert('❌ Error al leer el archivo Excel', 'error');
             }
-            // Resetear input para permitir reimportar el mismo archivo
             e.target.value = '';
         };
-        reader.readAsText(file);
+        reader.readAsBinaryString(file);
     }
 
     function printHistory() {
