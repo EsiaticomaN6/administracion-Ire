@@ -500,7 +500,7 @@
 
     function updateCharts(filtered, viewType) {
         const fmt = (v) => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN', maximumFractionDigits:0 }).format(v);
-        const fmtCompact = (v) => new Intl.NumberFormat('es-MX', { notation:'compact', style:'currency', currency:'MXN', maximumFractionDigits:0 }).format(v);
+        const fmtCompact = (v) => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN', maximumFractionDigits:0 }).format(v);
 
         const income  = filtered.filter(t => t.type === 'Ingreso').reduce((s,t) => s+t.amount, 0);
         const expense = filtered.filter(t => t.type === 'Egreso').reduce((s,t) => s+t.amount, 0);
