@@ -262,7 +262,7 @@
             <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none;">
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Monto</th><th>⋮</th></tr></thead>
+                    <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Monto</th></tr></thead>
                     <tbody id="historyBody"></tbody>
                 </table>
             </div>
@@ -671,8 +671,7 @@
                 <td><span class="badge badge-${t.type === 'Ingreso' ? 'ingreso':'egreso'}">${t.type.substring(0,3)}</span></td>
                 <td>${t.category}</td>
                 <td>${t.concept}</td>
-                <td class="amount ${t.type==='Ingreso'?'income':'expense'}">${t.type==='Ingreso'?'+':'-'}${formatCurrency(t.amount)}</td>
-                <td><button class="btn btn-danger btn-small" onclick="deleteTransaction(${t.id})">✕</button></td>`;
+                <td class="amount ${t.type==='Ingreso'?'income':'expense'}">${t.type==='Ingreso'?'+':'-'}${formatCurrency(t.amount)}</td>`;
         });
     }
 
