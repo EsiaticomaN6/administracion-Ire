@@ -637,7 +637,6 @@
 
     function updateCharts(filtered, viewType) {
         const fmt = (v) => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN', maximumFractionDigits:0 }).format(v);
-        const fmtCompact = (v) => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN', maximumFractionDigits:0 }).format(v);
 
         const income  = filtered.filter(t => t.type === 'Ingreso').reduce((s,t) => s+t.amount, 0);
         const expense = filtered.filter(t => t.type === 'Egreso').reduce((s,t) => s+t.amount, 0);
@@ -646,136 +645,98 @@
         const subtitleEl = document.getElementById('waterfallSubtitle');
         if (subtitleEl) subtitleEl.textContent = '';
 
-        // Categorías ordenadas por monto total descendente
+        // Agrupar por categoría
         const catMap = {};
         filtered.forEach(t => {
             if (!catMap[t.category]) catMap[t.category] = { ingreso:0, egreso:0 };
             if (t.type === 'Ingreso') catMap[t.category].ingreso += t.amount;
             else catMap[t.category].egreso += t.amount;
         });
-        const cats = Object.keys(catMap).sort((a,b) =>
-            (catMap[b].ingreso + catMap[b].egreso) - (catMap[a].ingreso + catMap[a].egreso)
-        );
 
-        // Orden de columnas: primero Ingresos por cat, luego Egresos por cat, luego Saldo
-        // Usamos un layout de etiquetas separadas con espaciador visual
-        const labels = [];
-        const dsIngreso = [], dsEgreso = [], dsSaldo = [];
+        // Un solo dataset: ingresos → egresos → saldo
+        const labels = [], values = [], bgColors = [], borderColors = [];
 
-        // Columnas de Ingresos (categorías con ingreso)
-        cats.filter(c => catMap[c].ingreso > 0).forEach(c => {
-            labels.push(c);
-            dsIngreso.push(catMap[c].ingreso);
-            dsEgreso.push(null);
-            dsSaldo.push(null);
-        });
-        // Columnas de Egresos (categorías con egreso)
-        cats.filter(c => catMap[c].egreso > 0).forEach(c => {
-            labels.push(c);
-            dsIngreso.push(null);
-            dsEgreso.push(catMap[c].egreso);
-            dsSaldo.push(null);
-        });
-        // Columna Saldo
-        if (cats.length > 0) {
-            labels.push('Saldo');
-            dsIngreso.push(null);
-            dsEgreso.push(null);
-            dsSaldo.push(balance);
+        Object.entries(catMap).filter(([,v]) => v.ingreso > 0)
+            .sort((a,b) => b[1].ingreso - a[1].ingreso)
+            .forEach(([cat,v]) => {
+                labels.push(cat); values.push(v.ingreso);
+                bgColors.push('rgba(10,132,255,0.35)');
+                borderColors.push('rgba(10,132,255,0.9)');
+            });
+
+        Object.entries(catMap).filter(([,v]) => v.egreso > 0)
+            .sort((a,b) => b[1].egreso - a[1].egreso)
+            .forEach(([cat,v]) => {
+                labels.push(cat); values.push(v.egreso);
+                bgColors.push('rgba(255,69,58,0.35)');
+                borderColors.push('rgba(255,69,58,0.9)');
+            });
+
+        if (labels.length > 0) {
+            labels.push('Saldo'); values.push(balance);
+            bgColors.push(balance >= 0 ? 'rgba(48,209,88,0.35)' : 'rgba(255,69,58,0.35)');
+            borderColors.push(balance >= 0 ? 'rgba(48,209,88,0.9)' : 'rgba(255,69,58,0.9)');
         }
 
-        const hasData = cats.length > 0;
-        const saldoColor  = balance >= 0 ? 'rgba(48,209,88,0.35)'  : 'rgba(255,69,58,0.35)';
-        const saldoBorder = balance >= 0 ? 'rgba(48,209,88,0.8)'  : 'rgba(255,69,58,0.8)';
+        const hasData = labels.length > 0;
 
         destroyChart('balanceChart');
         destroyChart('incomeChart');
         destroyChart('expenseChart');
 
+        // Leyenda manual debajo del canvas
+        const chartWrap = document.getElementById('balanceChart').parentElement;
+        let legEl = chartWrap.querySelector('.chart-legend');
+        if (!legEl) { legEl = document.createElement('div'); legEl.className = 'chart-legend'; chartWrap.appendChild(legEl); }
+        legEl.innerHTML = `
+            <div style="display:flex;justify-content:center;gap:18px;margin-top:10px;font-size:0.75rem;color:rgba(235,235,245,0.6);">
+                <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(10,132,255,0.35);border:1.5px solid rgba(10,132,255,0.9);"></span>Ingresos</span>
+                <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(255,69,58,0.35);border:1.5px solid rgba(255,69,58,0.9);"></span>Egresos</span>
+                <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(48,209,88,0.35);border:1.5px solid rgba(48,209,88,0.9);"></span>Saldo</span>
+            </div>`;
+
         chartInstances['balanceChart'] = new Chart(document.getElementById('balanceChart'), {
             type: 'bar',
             data: {
                 labels: hasData ? labels : ['Sin datos'],
-                datasets: [
-                    {
-                        label: 'Ingresos',
-                        data: hasData ? dsIngreso : [0],
-                        backgroundColor: 'rgba(10,132,255,0.35)',
-                        borderColor: 'rgba(10,132,255,0.8)',
-                        borderWidth: 1.5,
-                        borderRadius: 6,
-                        borderSkipped: false,
-                        categoryPercentage: 0.85,
-                        barPercentage: 0.85,
-                    },
-                    {
-                        label: 'Egresos',
-                        data: hasData ? dsEgreso : [0],
-                        backgroundColor: 'rgba(255,69,58,0.35)',
-                        borderColor: 'rgba(255,69,58,0.8)',
-                        borderWidth: 1.5,
-                        borderRadius: 6,
-                        borderSkipped: false,
-                        categoryPercentage: 0.85,
-                        barPercentage: 0.85,
-                    },
-                    {
-                        label: 'Saldo',
-                        data: hasData ? dsSaldo : [0],
-                        backgroundColor: saldoColor,
-                        borderColor: saldoBorder,
-                        borderWidth: 1.5,
-                        borderRadius: 6,
-                        borderSkipped: false,
-                        categoryPercentage: 0.85,
-                        barPercentage: 0.85,
-                    }
-                ]
+                datasets: [{
+                    data: hasData ? values : [0],
+                    backgroundColor: hasData ? bgColors : ['rgba(120,120,128,0.3)'],
+                    borderColor: hasData ? borderColors : ['rgba(120,120,128,0.6)'],
+                    borderWidth: 1.5,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                    categoryPercentage: 0.6,
+                    barPercentage: 0.8,
+                }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: true,
-                layout: { padding: { top: 20, bottom: 0 } },
+                layout: { padding: { top: 22 } },
                 plugins: {
-                    legend: {
-                        display: true,
-                        position: 'bottom',
-                        labels: { boxWidth: 12, font:{ size:11 }, padding:16 }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => ctx.raw !== null ? ` ${ctx.dataset.label}: ${fmt(ctx.raw)}` : null
-                        }
-                    }
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => ` ${fmt(ctx.raw)}` } }
                 },
                 scales: {
                     x: {
                         grid: { display:false },
-                        ticks: { font:{ size:11, weight:'600' }, color:'rgba(235,235,245,0.6)' }
+                        ticks: { font:{ size:11, weight:'600' }, color:'rgba(235,235,245,0.7)' }
                     },
-                    y: {
-                        display: false,   // Sin eje Y
-                        beginAtZero: true,
-                    }
+                    y: { display:false, beginAtZero:true }
                 },
                 animation: {
                     onComplete: function() {
-                        const chart = this;
-                        const ctx2  = chart.ctx;
+                        const chart = this, ctx2 = chart.ctx;
                         ctx2.save();
-                        ctx2.textAlign    = 'center';
-                        ctx2.textBaseline = 'bottom';
-                        ctx2.font         = 'bold 11px -apple-system, sans-serif';
-
-                        chart.data.datasets.forEach((dataset, dIdx) => {
-                            const meta = chart.getDatasetMeta(dIdx);
-                            if (meta.hidden) return;
-                            meta.data.forEach((bar, bIdx) => {
-                                const val = dataset.data[bIdx];
-                                if (val === null || val === undefined || val === 0) return;
-                                ctx2.fillStyle = dataset.borderColor;
-                                ctx2.fillText(fmtCompact(val), bar.x, bar.y - 4);
-                            });
+                        ctx2.textAlign = 'center'; ctx2.textBaseline = 'bottom';
+                        ctx2.font = 'bold 11px -apple-system, sans-serif';
+                        const meta = chart.getDatasetMeta(0);
+                        meta.data.forEach((bar, i) => {
+                            const val = chart.data.datasets[0].data[i];
+                            if (!val) return;
+                            ctx2.fillStyle = chart.data.datasets[0].borderColor[i];
+                            ctx2.fillText(fmt(val), bar.x, bar.y - 4);
                         });
                         ctx2.restore();
                     }
